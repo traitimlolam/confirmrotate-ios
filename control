@@ -1,9 +1,12 @@
-Package: com.cardboardface.confirmrotate
+Package: com.nguyentronghieu.confirmrotate
 Name: ConfirmRotate (Bản gốc iOS 16 RootHide)
 Depends: mobilesubstrate
-Version: 1.2.6-roothide
+Replaces: com.cardboardface.confirmrotate
+Conflicts: com.cardboardface.confirmrotate
+Provides: com.cardboardface.confirmrotate
+Version: 1.2.7-roothide
 Architecture: iphoneos-arm64e
-Description: Tinh chỉnh ConfirmRotate bản gốc CardboardFace được port hoàn hảo cho iOS 16 RootHide (iPhone 13 Pro Max). Nút con nhộng Rotate? ở cạnh phải, nhận diện xoay phần cứng bằng CoreMotion không lỗi Safe Mode.
+Description: ConfirmRotate chuẩn gốc CardboardFace sửa hoàn chỉnh cho iOS 16 RootHide (iPhone 13 Pro Max). Nút con nhộng Rotate? ở cạnh phải, nhận diện xoay phần cứng CoreMotion.
 Maintainer: Nguyễn Trọng Hiếu <traitimlolam@gmail.com>
 Author: CardboardFace & Nguyễn Trọng Hiếu
 Section: Tweaks
