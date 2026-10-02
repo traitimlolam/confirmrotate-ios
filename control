@@ -1,9 +1,9 @@
 Package: com.nguyentronghieu.confirmrotate
 Name: ConfirmRotate VN (iPhone 13 Pro Max)
 Depends: mobilesubstrate
-Version: 1.0.0
+Version: 1.0.1
 Architecture: iphoneos-arm64e
-Description: Tinh chỉnh xác nhận xoay màn hình thông minh phong cách Android. Hiện nút tròn nổi ở góc khi xoay ngang máy, bấm nút mới xoay, không bấm tự ẩn sau 3 giây (iOS 16 RootHide).
+Description: Tinh chỉnh xác nhận xoay màn hình thông minh phong cách Android. Đã sửa triệt để lỗi Safe Mode trên iOS 16 RootHide.
 Maintainer: Nguyễn Trọng Hiếu <traitimlolam@gmail.com>
 Author: Nguyễn Trọng Hiếu
 Section: Tweaks
