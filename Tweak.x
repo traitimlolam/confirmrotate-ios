@@ -39,7 +39,7 @@ static UIWindow *getTopSpringBoardWindow(void) {
             }
         }
     }
-    return app.keyWindow;
+    return nil;
 }
 
 @interface CRRotateManager : NSObject
@@ -117,8 +117,6 @@ static UIWindow *getTopSpringBoardWindow(void) {
         UIWindow *topWindow = getTopSpringBoardWindow();
         if (topWindow && topWindow.windowScene) {
             currentOri = topWindow.windowScene.interfaceOrientation;
-        } else {
-            currentOri = [UIApplication sharedApplication].statusBarOrientation;
         }
 
         if (targetOri == currentOri) {
