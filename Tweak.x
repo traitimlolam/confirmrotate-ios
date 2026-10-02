@@ -3,6 +3,7 @@
 #import <CoreMotion/CoreMotion.h>
 #import <objc/runtime.h>
 #import <sys/utsname.h>
+#import <math.h>
 
 @interface SBOrientationLockManager : NSObject
 + (instancetype)sharedInstance;
@@ -19,9 +20,16 @@ static UIWindow *getTopSpringBoardWindow(void) {
         if ([scene isKindOfClass:[UIWindowScene class]]) {
             UIWindowScene *ws = (UIWindowScene *)scene;
             for (UIWindow *w in ws.windows.reverseObjectEnumerator) {
-                if (!w.hidden && w.alpha > 0.05 && w.userInteractionEnabled) {
+                if (!w.hidden && w.alpha > 0.1 && w.userInteractionEnabled) {
                     return w;
                 }
+            }
+        }
+    }
+    if (app.windows.count > 0) {
+        for (UIWindow *w in app.windows.reverseObjectEnumerator) {
+            if (!w.hidden && w.alpha > 0.1) {
+                return w;
             }
         }
     }
@@ -31,7 +39,7 @@ static UIWindow *getTopSpringBoardWindow(void) {
 @interface CRRotateManager : NSObject
 + (instancetype)sharedInstance;
 - (void)startMonitoring;
-- (void)handleMotionData:(CMAccelerometerData *)data;
+- (void)handleAccelerometerData:(CMAccelerometerData *)data;
 @end
 
 @implementation CRRotateManager {
@@ -66,22 +74,21 @@ static UIWindow *getTopSpringBoardWindow(void) {
 
 - (UIView *)getOrCreateCapsuleView {
     if (!_capsuleContainer) {
-        // Original ConfirmRotate Capsule Button: 110x46pt
-        UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 110, 46)];
-        container.layer.cornerRadius = 23.0;
+        UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 112, 48)];
+        container.layer.cornerRadius = 24.0;
         container.layer.masksToBounds = NO;
-        container.backgroundColor = [UIColor colorWithWhite:0.10 alpha:0.90];
+        container.backgroundColor = [UIColor colorWithWhite:0.10 alpha:0.92];
         container.layer.borderWidth = 1.0;
         container.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
 
-        // Subtle drop shadow
+        // Shadow
         container.layer.shadowColor = [UIColor blackColor].CGColor;
-        container.layer.shadowOpacity = 0.5;
-        container.layer.shadowRadius = 8.0;
-        container.layer.shadowOffset = CGSizeMake(0, 3);
+        container.layer.shadowOpacity = 0.55;
+        container.layer.shadowRadius = 10.0;
+        container.layer.shadowOffset = CGSizeMake(0, 4);
 
-        // Icon (rotate.png from authentic ConfirmRotate bundle)
-        UIImageView *icon = [[UIImageView alloc] initWithFrame:CGRectMake(10, 8, 30, 30)];
+        // Icon (rotate.png from authentic bundle)
+        UIImageView *icon = [[UIImageView alloc] initWithFrame:CGRectMake(10, 9, 30, 30)];
         icon.contentMode = UIViewContentModeScaleAspectFit;
         NSString *imgPath = @"/Library/Application Support/ConfirmRotate/ConfirmRotateBundle.bundle/rotate.png";
         UIImage *img = [UIImage imageWithContentsOfFile:imgPath];
@@ -94,19 +101,20 @@ static UIWindow *getTopSpringBoardWindow(void) {
         [container addSubview:icon];
         self->_iconView = icon;
 
-        // Label: "Rotate?" (authentic Helvetica-Bold font)
-        UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(44, 11, 56, 24)];
+        // Label: "Rotate?"
+        UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(44, 12, 58, 24)];
         label.text = @"Rotate?";
         label.textColor = [UIColor whiteColor];
-        label.font = [UIFont fontWithName:@"Helvetica-Bold" size:14.5];
+        label.font = [UIFont fontWithName:@"Helvetica-Bold" size:15.0];
         if (!label.font) {
-            label.font = [UIFont boldSystemFontOfSize:14.5];
+            label.font = [UIFont boldSystemFontOfSize:15.0];
         }
         [container addSubview:label];
         self->_labelView = label;
 
-        // Tap gesture recognizer
+        // Tap Gesture
         UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleCapsuleTapped)];
+        tap.cancelsTouchesInView = YES;
         [container addGestureRecognizer:tap];
         container.userInteractionEnabled = YES;
 
@@ -120,32 +128,38 @@ static UIWindow *getTopSpringBoardWindow(void) {
 
     _motionManager = [[CMMotionManager alloc] init];
     if (_motionManager.isAccelerometerAvailable) {
-        _motionManager.accelerometerUpdateInterval = 0.25; // 4 times per second
-        [_motionManager startAccelerometerUpdatesToQueue:[NSOperationQueue mainQueue] withHandler:^(CMAccelerometerData * _Nullable data, NSError * _Nullable error) {
+        _motionManager.accelerometerUpdateInterval = 0.20; // 5 times/sec
+        [_motionManager startAccelerometerUpdatesToQueue:[NSOperationQueue mainQueue]
+                                             withHandler:^(CMAccelerometerData * _Nullable data, NSError * _Nullable error) {
             if (data) {
-                [self handleMotionData:data];
+                [self handleAccelerometerData:data];
             }
         }];
     }
 }
 
-- (void)handleMotionData:(CMAccelerometerData *)data {
+- (void)handleAccelerometerData:(CMAccelerometerData *)data {
     double x = data.acceleration.x;
     double y = data.acceleration.y;
     double z = data.acceleration.z;
 
-    // Ignore when lying flat on table or bed
-    if (fabs(z) >= 0.85) {
+    // Ignore when flat on surface
+    if (fabs(z) >= 0.90) {
         return;
     }
 
+    // Standard orientation angle: atan2(x, -y) in degrees (-180 to 180)
+    double angle = atan2(x, -y) * 180.0 / M_PI;
+
     UIInterfaceOrientation physicalOri = UIInterfaceOrientationUnknown;
-    if (y <= -0.65 && fabs(x) < 0.45) {
+    if (angle >= -45.0 && angle <= 45.0) {
         physicalOri = UIInterfaceOrientationPortrait;
-    } else if (x >= 0.65 && fabs(y) < 0.45) {
-        physicalOri = UIInterfaceOrientationLandscapeLeft;
-    } else if (x <= -0.65 && fabs(y) < 0.45) {
+    } else if (angle > 45.0 && angle <= 135.0) {
+        // Tilted left (top to left) -> target landscape right
         physicalOri = UIInterfaceOrientationLandscapeRight;
+    } else if (angle >= -135.0 && angle < -45.0) {
+        // Tilted right (top to right) -> target landscape left
+        physicalOri = UIInterfaceOrientationLandscapeLeft;
     }
 
     if (physicalOri == UIInterfaceOrientationUnknown) {
@@ -188,10 +202,10 @@ static UIWindow *getTopSpringBoardWindow(void) {
     [topWindow bringSubviewToFront:capsule];
 
     CGRect bounds = topWindow.bounds;
-    CGFloat width = 110.0;
-    CGFloat height = 46.0;
-    CGFloat marginX = 16.0;
-    CGFloat posY = bounds.size.height * 0.58; // Middle-right, matching authentic screenshot
+    CGFloat width = 112.0;
+    CGFloat height = 48.0;
+    CGFloat marginX = 18.0;
+    CGFloat posY = bounds.size.height * 0.55;
 
     capsule.frame = CGRectMake(bounds.size.width - width - marginX,
                                posY,
@@ -202,7 +216,7 @@ static UIWindow *getTopSpringBoardWindow(void) {
     capsule.transform = CGAffineTransformMakeScale(0.4, 0.4);
     self->_isShowing = YES;
 
-    // Subtle vibration
+    // Peek vibration
     AudioServicesPlaySystemSound(1519);
 
     [UIView animateWithDuration:0.35 delay:0 usingSpringWithDamping:0.7 initialSpringVelocity:0.7 options:UIViewAnimationOptionCurveEaseOut animations:^{
@@ -288,13 +302,8 @@ static UIWindow *getTopSpringBoardWindow(void) {
         return;
     }
 
-    // Zero hooks on SpringBoard! Listen after boot
-    [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
-                                                      object:nil
-                                                       queue:[NSOperationQueue mainQueue]
-                                                  usingBlock:^(NSNotification *note) {
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            [[CRRotateManager sharedInstance] startMonitoring];
-        });
-    }];
+    // Start monitoring automatically after 1.5s
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        [[CRRotateManager sharedInstance] startMonitoring];
+    });
 }
