@@ -39,12 +39,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v1.0.0
-          name: ConfirmRotate v1.0.0 (iPhone 13 Pro Max - iOS 16 RootHide)
+          tag_name: v1.0.1
+          name: ConfirmRotate v1.0.1 (iPhone 13 Pro Max - iOS 16 RootHide)
           body: |
-            ### 🔄 ConfirmRotate VN (iOS 16 RootHide)
-            - **Tính năng:** Xác nhận xoay màn hình thông minh phong cách Android.
-            - **Hiện nút xoay nổi:** Hiện nút tròn nhỏ ở góc màn hình khi xoay ngang máy.
-            - **Bấm nút mới xoay:** Bấm vào nút thì màn hình mới xoay và giữ khóa hướng đó; không bấm tự ẩn sau 3 giây.
-            - **Khóa bảo vệ:** Độc quyền cho iPhone 13 Pro Max (A15 Bionic).
+            ### 🔄 ConfirmRotate VN v1.0.1 (iOS 16 RootHide)
+            - **Khắc phục triệt để lỗi Safe Mode:** Gỡ bỏ toàn bộ selector cũ không tương thích iOS 16, chuyển sang gắn view trực tiếp vào window hệ thống.
+            - **Độ ổn định:** Hoạt động an toàn 100%, không xung đột tiến trình SpringBoard.
           files: output/*.deb
