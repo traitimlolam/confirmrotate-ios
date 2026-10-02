@@ -29,7 +29,7 @@ jobs:
           chmod -R 755 layout/DEBIAN/
           make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
           mkdir -p output
-          cp packages/*.deb output/ConfirmRotate_v1.2.6_iPhone13ProMax_roothide.deb
+          cp packages/*.deb output/ConfirmRotate_v1.2.7_iPhone13ProMax_roothide.deb
 
       - name: List Output Files
         run: |
@@ -39,11 +39,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v1.2.6
-          name: ConfirmRotate v1.2.6 (Bản Gốc Tương Thích iOS 16 RootHide)
+          tag_name: v1.2.7
+          name: ConfirmRotate v1.2.7 (Đã Sửa Xung Đột DPKG Cho iOS 16 RootHide)
           body: |
-            ### 🔄 ConfirmRotate v1.2.6 (Chuẩn Gốc CardboardFace - iOS 16 RootHide)
-            - **Giao diện chuẩn 100% bản gốc:** Nút con nhộng màu than chì `Rotate?` ở cạnh phải màn hình với icon xoay chuẩn gốc.
-            - **Cảm biến phần cứng CoreMotion:** Nhận diện chuyển động nghiêng máy trực tiếp từ cảm biến gia tốc phần cứng, kể cả khi đang bật Khóa Xoay.
-            - **An toàn tuyệt đối:** 0% nguy cơ Safe Mode trên iOS 16.1.1 RootHide (iPhone 13 Pro Max).
+            ### 🔄 ConfirmRotate v1.2.7 (iOS 16 RootHide)
+            - **Sửa lỗi xung đột dpkg:** Đồng bộ Package ID để cài đè mượt mà không bị báo lỗi `trying to overwrite ConfirmRotate.dylib`.
+            - **Chuẩn giao diện gốc CardboardFace:** Nút con nhộng màu tối `Rotate?` ở cạnh phải màn hình.
+            - **Nhận diện phần cứng CoreMotion:** Xoay là hiện nút ngay lập tức, tương thích hoàn hảo iOS 16.
           files: output/*.deb
