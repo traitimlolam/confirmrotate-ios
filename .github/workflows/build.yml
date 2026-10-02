@@ -1,0 +1,50 @@
+name: Build ConfirmRotate DEB
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Tweak (.deb)
+    runs-on: macos-14
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Theos (RootHide)
+        uses: waruhachi/theos-action@v2.4.10
+        with:
+          theos-src: 'roothide/theos'
+          theos-branch: 'master'
+          sdks-src: 'theos/sdks'
+          sdks-branch: 'master'
+
+      - name: Build RootHide DEB
+        run: |
+          chmod -R 755 layout/DEBIAN/
+          make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
+          mkdir -p output
+          cp packages/*.deb output/ConfirmRotate_iPhone13ProMax_roothide.deb
+
+      - name: List Output Files
+        run: |
+          ls -la output/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
+        with:
+          tag_name: v1.0.0
+          name: ConfirmRotate v1.0.0 (iPhone 13 Pro Max - iOS 16 RootHide)
+          body: |
+            ### 🔄 ConfirmRotate VN (iOS 16 RootHide)
+            - **Tính năng:** Xác nhận xoay màn hình thông minh phong cách Android.
+            - **Hiện nút xoay nổi:** Hiện nút tròn nhỏ ở góc màn hình khi xoay ngang máy.
+            - **Bấm nút mới xoay:** Bấm vào nút thì màn hình mới xoay và giữ khóa hướng đó; không bấm tự ẩn sau 3 giây.
+            - **Khóa bảo vệ:** Độc quyền cho iPhone 13 Pro Max (A15 Bionic).
+          files: output/*.deb
