@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "Đã kích hoạt ConfirmRotate thành công cho SpringBoard."
+exit 0
