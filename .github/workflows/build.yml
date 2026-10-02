@@ -29,7 +29,7 @@ jobs:
           chmod -R 755 layout/DEBIAN/
           make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
           mkdir -p output
-          cp packages/*.deb output/ConfirmRotate_v1.2.7_iPhone13ProMax_roothide.deb
+          cp packages/*.deb output/ConfirmRotate_v1.2.8_iPhone13ProMax_roothide.deb
 
       - name: List Output Files
         run: |
@@ -39,11 +39,11 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v1.2.7
-          name: ConfirmRotate v1.2.7 (Đã Sửa Xung Đột DPKG Cho iOS 16 RootHide)
+          tag_name: v1.2.8
+          name: ConfirmRotate v1.2.8 (Nhận Diện Gia Tốc Cực Nhạy Cho iOS 16 RootHide)
           body: |
-            ### 🔄 ConfirmRotate v1.2.7 (iOS 16 RootHide)
-            - **Sửa lỗi xung đột dpkg:** Đồng bộ Package ID để cài đè mượt mà không bị báo lỗi `trying to overwrite ConfirmRotate.dylib`.
-            - **Chuẩn giao diện gốc CardboardFace:** Nút con nhộng màu tối `Rotate?` ở cạnh phải màn hình.
-            - **Nhận diện phần cứng CoreMotion:** Xoay là hiện nút ngay lập tức, tương thích hoàn hảo iOS 16.
+            ### 🔄 ConfirmRotate v1.2.8 (iOS 16 RootHide)
+            - **Khởi động cảm biến trực tiếp:** Khởi chạy `startMonitoring` ngay lập tức 1.5s sau khởi động, không phụ thuộc vào notification hệ thống.
+            - **Thuật toán đo góc chuẩn `atan2(x, -y)`:** Bắt mọi góc nghiêng cực nhạy và chính xác (kể cả khi cầm nghiêng trên giường hay ngồi ghế).
+            - **Nút bấm chuẩn gốc:** Capsule than chì `Rotate?` ở cạnh phải với icon gốc.
           files: output/*.deb
