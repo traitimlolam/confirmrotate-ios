@@ -29,7 +29,7 @@ jobs:
           chmod -R 755 layout/DEBIAN/
           make clean package FINALPACKAGE=1 THEOS_PACKAGE_SCHEME=roothide
           mkdir -p output
-          cp packages/*.deb output/ConfirmRotate_v1.2.8_iPhone13ProMax_roothide.deb
+          cp packages/*.deb output/ConfirmRotate_v1.2.9_iPhone13ProMax_roothide.deb
 
       - name: List Output Files
         run: |
@@ -39,11 +39,12 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/master')
         with:
-          tag_name: v1.2.8
-          name: ConfirmRotate v1.2.8 (Nhận Diện Gia Tốc Cực Nhạy Cho iOS 16 RootHide)
+          tag_name: v1.2.9
+          name: ConfirmRotate v1.2.9 (Chuẩn Gốc iOS 14 - Nổi Mọi Nơi - Hoạt Động 100% Trên iOS 16)
           body: |
-            ### 🔄 ConfirmRotate v1.2.8 (iOS 16 RootHide)
-            - **Khởi động cảm biến trực tiếp:** Khởi chạy `startMonitoring` ngay lập tức 1.5s sau khởi động, không phụ thuộc vào notification hệ thống.
-            - **Thuật toán đo góc chuẩn `atan2(x, -y)`:** Bắt mọi góc nghiêng cực nhạy và chính xác (kể cả khi cầm nghiêng trên giường hay ngồi ghế).
-            - **Nút bấm chuẩn gốc:** Capsule than chì `Rotate?` ở cạnh phải với icon gốc.
+            ### 🔄 ConfirmRotate v1.2.9 (Bản Gốc iOS 14 Phục Hồi Hoàn Chỉnh Cho iOS 16)
+            - **Cửa sổ nổi CRTouchWindow:** Nổi độc lập trên mọi ứng dụng (Safari, YouTube, Facebook, Cài đặt, Màn hình chính) với windowLevel cao nhất, không bị che khuất.
+            - **Nhận diện xoay 2 tầng toàn hệ thống:** Hook trực tiếp `SBDeviceOrientationUpdateManager _enqueueOrientationUpdateToDeviceOrientation:` kết hợp cảm biến `CoreMotion atan2`.
+            - **Giao diện chuẩn iOS 14:** Viên con nhộng than chì mờ (116x48pt), bo góc 24pt, icon xoay gốc, chữ `Rotate?` Helvetica-Bold.
+            - **Bấm là xoay:** Đồng bộ mở khóa xoay qua `SBOrientationLockManager` và ép xoay màn hình `SpringBoard`.
           files: output/*.deb
