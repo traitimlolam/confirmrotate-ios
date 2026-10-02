@@ -1,5 +1,6 @@
 #import <UIKit/UIKit.h>
 #import <AudioToolbox/AudioToolbox.h>
+#import <objc/runtime.h>
 #import <sys/utsname.h>
 
 // Forward declarations
@@ -153,8 +154,11 @@ static UIInterfaceOrientation targetInterfaceOrientationForDeviceOrientation(UID
     }
 
     // Only prompt when rotation lock is enabled (or orientation differs)
-    SBOrientationLockManager *lockMan = [objc_getClass("SBOrientationLockManager") sharedInstance];
-    BOOL isLocked = (lockMan && [lockMan isUserLocked]);
+    Class lockClass = NSClassFromString(@"SBOrientationLockManager");
+    if (!lockClass) return;
+    
+    id lockMan = [lockClass performSelector:@selector(sharedInstance)];
+    BOOL isLocked = (lockMan && [lockMan respondsToSelector:@selector(isUserLocked)] && [lockMan isUserLocked]);
 
     if (!isLocked) {
         return;
@@ -216,15 +220,26 @@ static UIInterfaceOrientation targetInterfaceOrientationForDeviceOrientation(UID
     UIInterfaceOrientation target = self->_pendingTargetOrientation;
     if (target == UIInterfaceOrientationUnknown) return;
 
-    SBOrientationLockManager *lockMan = [objc_getClass("SBOrientationLockManager") sharedInstance];
-    if (lockMan) {
-        [lockMan unlock];
-        if ([lockMan respondsToSelector:@selector(lock:)]) {
-            [lockMan lock:(long long)target];
-        }
-        SpringBoard *sb = (SpringBoard *)[UIApplication sharedApplication];
-        if ([sb respondsToSelector:@selector(updateOrientationDetectionSettings)]) {
-            [sb updateOrientationDetectionSettings];
+    Class lockClass = NSClassFromString(@"SBOrientationLockManager");
+    if (lockClass) {
+        id lockMan = [lockClass performSelector:@selector(sharedInstance)];
+        if (lockMan) {
+            if ([lockMan respondsToSelector:@selector(unlock)]) {
+                [lockMan unlock];
+            }
+            if ([lockMan respondsToSelector:@selector(lock:)]) {
+                NSMethodSignature *sig = [lockMan methodSignatureForSelector:@selector(lock:)];
+                NSInvocation *inv = [NSInvocation invocationWithMethodSignature:sig];
+                [inv setTarget:lockMan];
+                [inv setSelector:@selector(lock:)];
+                long long oriVal = (long long)target;
+                [inv setArgument:&oriVal atIndex:2];
+                [inv invoke];
+            }
+            SpringBoard *sb = (SpringBoard *)[UIApplication sharedApplication];
+            if ([sb respondsToSelector:@selector(updateOrientationDetectionSettings)]) {
+                [sb updateOrientationDetectionSettings];
+            }
         }
     }
 }
