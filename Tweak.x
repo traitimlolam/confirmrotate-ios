@@ -1,5 +1,6 @@
 #import <UIKit/UIKit.h>
 #import <AudioToolbox/AudioToolbox.h>
+#import <CoreMotion/CoreMotion.h>
 #import <objc/runtime.h>
 #import <sys/utsname.h>
 
@@ -11,21 +12,6 @@
 - (void)unlock;
 - (void)lock:(long long)orientation;
 @end
-
-static UIInterfaceOrientation targetOrientationForDeviceOrientation(UIDeviceOrientation devOri) {
-    switch (devOri) {
-        case UIDeviceOrientationPortrait:
-            return UIInterfaceOrientationPortrait;
-        case UIDeviceOrientationPortraitUpsideDown:
-            return UIInterfaceOrientationPortraitUpsideDown;
-        case UIDeviceOrientationLandscapeLeft:
-            return UIInterfaceOrientationLandscapeRight;
-        case UIDeviceOrientationLandscapeRight:
-            return UIInterfaceOrientationLandscapeLeft;
-        default:
-            return UIInterfaceOrientationUnknown;
-    }
-}
 
 static UIWindow *getTopSpringBoardWindow(void) {
     UIApplication *app = [UIApplication sharedApplication];
@@ -44,13 +30,18 @@ static UIWindow *getTopSpringBoardWindow(void) {
 
 @interface CRRotateManager : NSObject
 + (instancetype)sharedInstance;
-- (void)onOrientationChanged;
+- (void)startMonitoring;
+- (void)handleMotionData:(CMAccelerometerData *)data;
 @end
 
 @implementation CRRotateManager {
-    UIButton *_floatingButton;
+    CMMotionManager *_motionManager;
+    UIView *_capsuleContainer;
+    UIImageView *_iconView;
+    UILabel *_labelView;
     NSTimer *_dismissTimer;
     UIInterfaceOrientation _pendingOrientation;
+    UIInterfaceOrientation _lastDetectedOrientation;
     BOOL _isShowing;
 }
 
@@ -68,131 +59,176 @@ static UIWindow *getTopSpringBoardWindow(void) {
     if (self) {
         _isShowing = NO;
         _pendingOrientation = UIInterfaceOrientationUnknown;
+        _lastDetectedOrientation = UIInterfaceOrientationPortrait;
     }
     return self;
 }
 
-- (UIButton *)getOrCreateButton {
-    if (!_floatingButton) {
-        UIButton *btn = [UIButton buttonWithType:UIButtonTypeCustom];
-        btn.frame = CGRectMake(0, 0, 52, 52);
-        btn.layer.cornerRadius = 26.0;
-        btn.layer.masksToBounds = NO;
-        btn.backgroundColor = [UIColor colorWithWhite:0.12 alpha:0.88];
-        btn.layer.borderWidth = 1.0;
-        btn.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
+- (UIView *)getOrCreateCapsuleView {
+    if (!_capsuleContainer) {
+        // Original ConfirmRotate Capsule Button: 110x46pt
+        UIView *container = [[UIView alloc] initWithFrame:CGRectMake(0, 0, 110, 46)];
+        container.layer.cornerRadius = 23.0;
+        container.layer.masksToBounds = NO;
+        container.backgroundColor = [UIColor colorWithWhite:0.10 alpha:0.90];
+        container.layer.borderWidth = 1.0;
+        container.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.35].CGColor;
 
-        // Shadow
-        btn.layer.shadowColor = [UIColor blackColor].CGColor;
-        btn.layer.shadowOpacity = 0.45;
-        btn.layer.shadowRadius = 8.0;
-        btn.layer.shadowOffset = CGSizeMake(0, 3);
+        // Subtle drop shadow
+        container.layer.shadowColor = [UIColor blackColor].CGColor;
+        container.layer.shadowOpacity = 0.5;
+        container.layer.shadowRadius = 8.0;
+        container.layer.shadowOffset = CGSizeMake(0, 3);
 
-        // Icon
-        UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:24 weight:UIImageSymbolWeightSemibold];
-        UIImage *icon = [UIImage systemImageNamed:@"arrow.triangle.2.circlepath" withConfiguration:config];
-        [btn setImage:icon forState:UIControlStateNormal];
-        btn.tintColor = [UIColor whiteColor];
+        // Icon (rotate.png from authentic ConfirmRotate bundle)
+        UIImageView *icon = [[UIImageView alloc] initWithFrame:CGRectMake(10, 8, 30, 30)];
+        icon.contentMode = UIViewContentModeScaleAspectFit;
+        NSString *imgPath = @"/Library/Application Support/ConfirmRotate/ConfirmRotateBundle.bundle/rotate.png";
+        UIImage *img = [UIImage imageWithContentsOfFile:imgPath];
+        if (!img) {
+            UIImageSymbolConfiguration *config = [UIImageSymbolConfiguration configurationWithPointSize:22 weight:UIImageSymbolWeightSemibold];
+            img = [UIImage systemImageNamed:@"arrow.triangle.2.circlepath" withConfiguration:config];
+            icon.tintColor = [UIColor whiteColor];
+        }
+        icon.image = img;
+        [container addSubview:icon];
+        self->_iconView = icon;
 
-        [btn addTarget:self action:@selector(handleButtonTapped) forControlEvents:UIControlEventTouchUpInside];
-        _floatingButton = btn;
+        // Label: "Rotate?" (authentic Helvetica-Bold font)
+        UILabel *label = [[UILabel alloc] initWithFrame:CGRectMake(44, 11, 56, 24)];
+        label.text = @"Rotate?";
+        label.textColor = [UIColor whiteColor];
+        label.font = [UIFont fontWithName:@"Helvetica-Bold" size:14.5];
+        if (!label.font) {
+            label.font = [UIFont boldSystemFontOfSize:14.5];
+        }
+        [container addSubview:label];
+        self->_labelView = label;
+
+        // Tap gesture recognizer
+        UITapGestureRecognizer *tap = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(handleCapsuleTapped)];
+        [container addGestureRecognizer:tap];
+        container.userInteractionEnabled = YES;
+
+        self->_capsuleContainer = container;
     }
-    return _floatingButton;
+    return _capsuleContainer;
 }
 
-- (void)onOrientationChanged {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIDeviceOrientation devOri = [[UIDevice currentDevice] orientation];
-        if (devOri == UIDeviceOrientationFaceUp || devOri == UIDeviceOrientationFaceDown || devOri == UIDeviceOrientationUnknown) {
-            return;
-        }
+- (void)startMonitoring {
+    if (_motionManager) return;
 
-        UIInterfaceOrientation targetOri = targetOrientationForDeviceOrientation(devOri);
-        if (targetOri == UIInterfaceOrientationUnknown) {
-            return;
-        }
-
-        // Determine current interface orientation safely
-        UIInterfaceOrientation currentOri = UIInterfaceOrientationPortrait;
-        UIWindow *topWindow = getTopSpringBoardWindow();
-        if (topWindow && topWindow.windowScene) {
-            currentOri = topWindow.windowScene.interfaceOrientation;
-        }
-
-        if (targetOri == currentOri) {
-            [self dismissButtonAnimated:YES];
-            return;
-        }
-
-        // Only prompt when rotation lock is enabled
-        Class lockClass = NSClassFromString(@"SBOrientationLockManager");
-        if (lockClass) {
-            id lockMan = [lockClass performSelector:@selector(sharedInstance)];
-            if (lockMan && [lockMan respondsToSelector:@selector(isUserLocked)]) {
-                if (![lockMan isUserLocked]) {
-                    return; // Rotation lock is off, system handles auto-rotation
-                }
+    _motionManager = [[CMMotionManager alloc] init];
+    if (_motionManager.isAccelerometerAvailable) {
+        _motionManager.accelerometerUpdateInterval = 0.25; // 4 times per second
+        [_motionManager startAccelerometerUpdatesToQueue:[NSOperationQueue mainQueue] withHandler:^(CMAccelerometerData * _Nullable data, NSError * _Nullable error) {
+            if (data) {
+                [self handleMotionData:data];
             }
-        }
-
-        self->_pendingOrientation = targetOri;
-        [self showButtonAtCorner];
-    });
+        }];
+    }
 }
 
-- (void)showButtonAtCorner {
+- (void)handleMotionData:(CMAccelerometerData *)data {
+    double x = data.acceleration.x;
+    double y = data.acceleration.y;
+    double z = data.acceleration.z;
+
+    // Ignore when lying flat on table or bed
+    if (fabs(z) >= 0.85) {
+        return;
+    }
+
+    UIInterfaceOrientation physicalOri = UIInterfaceOrientationUnknown;
+    if (y <= -0.65 && fabs(x) < 0.45) {
+        physicalOri = UIInterfaceOrientationPortrait;
+    } else if (x >= 0.65 && fabs(y) < 0.45) {
+        physicalOri = UIInterfaceOrientationLandscapeLeft;
+    } else if (x <= -0.65 && fabs(y) < 0.45) {
+        physicalOri = UIInterfaceOrientationLandscapeRight;
+    }
+
+    if (physicalOri == UIInterfaceOrientationUnknown) {
+        return;
+    }
+
+    if (physicalOri == _lastDetectedOrientation) {
+        return;
+    }
+
+    _lastDetectedOrientation = physicalOri;
+
+    // Get current screen orientation
+    UIWindow *topWindow = getTopSpringBoardWindow();
+    UIInterfaceOrientation currentOri = UIInterfaceOrientationPortrait;
+    if (topWindow && topWindow.windowScene) {
+        currentOri = topWindow.windowScene.interfaceOrientation;
+    }
+
+    if (physicalOri == currentOri) {
+        [self dismissCapsuleAnimated:YES];
+        return;
+    }
+
+    self->_pendingOrientation = physicalOri;
+    [self showCapsulePrompt];
+}
+
+- (void)showCapsulePrompt {
     [self->_dismissTimer invalidate];
 
     UIWindow *topWindow = getTopSpringBoardWindow();
     if (!topWindow) return;
 
-    UIButton *btn = [self getOrCreateButton];
-    if (btn.superview != topWindow) {
-        [btn removeFromSuperview];
-        [topWindow addSubview:btn];
+    UIView *capsule = [self getOrCreateCapsuleView];
+    if (capsule.superview != topWindow) {
+        [capsule removeFromSuperview];
+        [topWindow addSubview:capsule];
     }
-    [topWindow bringSubviewToFront:btn];
+    [topWindow bringSubviewToFront:capsule];
 
     CGRect bounds = topWindow.bounds;
-    CGFloat size = 52.0;
-    CGFloat marginX = 24.0;
-    CGFloat marginY = 60.0;
+    CGFloat width = 110.0;
+    CGFloat height = 46.0;
+    CGFloat marginX = 16.0;
+    CGFloat posY = bounds.size.height * 0.58; // Middle-right, matching authentic screenshot
 
-    btn.frame = CGRectMake(bounds.size.width - size - marginX,
-                           bounds.size.height - size - marginY,
-                           size, size);
+    capsule.frame = CGRectMake(bounds.size.width - width - marginX,
+                               posY,
+                               width,
+                               height);
 
-    btn.alpha = 0.0;
-    btn.transform = CGAffineTransformMakeScale(0.3, 0.3);
+    capsule.alpha = 0.0;
+    capsule.transform = CGAffineTransformMakeScale(0.4, 0.4);
     self->_isShowing = YES;
 
-    // Haptic
+    // Subtle vibration
     AudioServicesPlaySystemSound(1519);
 
-    [UIView animateWithDuration:0.3 delay:0 usingSpringWithDamping:0.7 initialSpringVelocity:0.6 options:UIViewAnimationOptionCurveEaseOut animations:^{
-        btn.alpha = 1.0;
-        btn.transform = CGAffineTransformIdentity;
+    [UIView animateWithDuration:0.35 delay:0 usingSpringWithDamping:0.7 initialSpringVelocity:0.7 options:UIViewAnimationOptionCurveEaseOut animations:^{
+        capsule.alpha = 1.0;
+        capsule.transform = CGAffineTransformIdentity;
     } completion:nil];
 
-    // Auto dismiss after 3.0s
-    self->_dismissTimer = [NSTimer scheduledTimerWithTimeInterval:3.0 repeats:NO block:^(NSTimer * _Nonnull timer) {
-        [self dismissButtonAnimated:YES];
+    // Auto dismiss after 3.5s
+    self->_dismissTimer = [NSTimer scheduledTimerWithTimeInterval:3.5 repeats:NO block:^(NSTimer * _Nonnull timer) {
+        [self dismissCapsuleAnimated:YES];
     }];
 }
 
-- (void)handleButtonTapped {
+- (void)handleCapsuleTapped {
     [self->_dismissTimer invalidate];
 
-    // Haptic
+    // Click haptic
     AudioServicesPlaySystemSound(1520);
 
-    UIButton *btn = self->_floatingButton;
+    UIView *capsule = self->_capsuleContainer;
     [UIView animateWithDuration:0.2 animations:^{
-        btn.transform = CGAffineTransformMakeScale(1.15, 1.15);
-        btn.alpha = 0.0;
+        capsule.transform = CGAffineTransformMakeScale(1.15, 1.15);
+        capsule.alpha = 0.0;
     } completion:^(BOOL finished) {
-        [btn removeFromSuperview];
-        btn.transform = CGAffineTransformIdentity;
+        [capsule removeFromSuperview];
+        capsule.transform = CGAffineTransformIdentity;
         self->_isShowing = NO;
     }];
 
@@ -221,24 +257,24 @@ static UIWindow *getTopSpringBoardWindow(void) {
     }
 }
 
-- (void)dismissButtonAnimated:(BOOL)animated {
-    if (!self->_isShowing || !self->_floatingButton || !self->_floatingButton.superview) return;
+- (void)dismissCapsuleAnimated:(BOOL)animated {
+    if (!self->_isShowing || !self->_capsuleContainer || !self->_capsuleContainer.superview) return;
 
-    UIButton *btn = self->_floatingButton;
+    UIView *capsule = self->_capsuleContainer;
     self->_isShowing = NO;
 
     if (animated) {
         [UIView animateWithDuration:0.25 animations:^{
-            btn.alpha = 0.0;
-            btn.transform = CGAffineTransformMakeScale(0.5, 0.5);
+            capsule.alpha = 0.0;
+            capsule.transform = CGAffineTransformMakeScale(0.5, 0.5);
         } completion:^(BOOL finished) {
-            [btn removeFromSuperview];
-            btn.transform = CGAffineTransformIdentity;
+            [capsule removeFromSuperview];
+            capsule.transform = CGAffineTransformIdentity;
         }];
     } else {
-        [btn removeFromSuperview];
-        btn.alpha = 0.0;
-        btn.transform = CGAffineTransformIdentity;
+        [capsule removeFromSuperview];
+        capsule.alpha = 0.0;
+        capsule.transform = CGAffineTransformIdentity;
     }
 }
 
@@ -252,20 +288,13 @@ static UIWindow *getTopSpringBoardWindow(void) {
         return;
     }
 
-    // Zero hooks on SpringBoard! Safely listen after app launch
+    // Zero hooks on SpringBoard! Listen after boot
     [[NSNotificationCenter defaultCenter] addObserverForName:UIApplicationDidFinishLaunchingNotification
                                                       object:nil
                                                        queue:[NSOperationQueue mainQueue]
                                                   usingBlock:^(NSNotification *note) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            [[UIDevice currentDevice] beginGeneratingDeviceOrientationNotifications];
-
-            [[NSNotificationCenter defaultCenter] addObserverForName:UIDeviceOrientationDidChangeNotification
-                                                              object:nil
-                                                               queue:[NSOperationQueue mainQueue]
-                                                          usingBlock:^(NSNotification *n) {
-                [[CRRotateManager sharedInstance] onOrientationChanged];
-            }];
+            [[CRRotateManager sharedInstance] startMonitoring];
         });
     }];
 }
