@@ -1,0 +1,12 @@
+#!/bin/sh
+HW_MODEL=$(sysctl -n hw.machine 2>/dev/null)
+if [ "$HW_MODEL" != "iPhone14,3" ] && [ "$HW_MODEL" != "iPhone14,4" ]; then
+    echo "==========================================================" >&2
+    echo "❌ LỖI KHÔNG TƯƠNG THÍCH THIẾT BỊ:" >&2
+    echo "Gói tinh chỉnh này chỉ dành riêng cho iPhone của Sếp Hiếu!" >&2
+    echo "Thiết bị hiện tại của bạn: $HW_MODEL" >&2
+    echo "Tiến trình cài đặt bị hủy bỏ!" >&2
+    echo "==========================================================" >&2
+    exit 1
+fi
+exit 0
